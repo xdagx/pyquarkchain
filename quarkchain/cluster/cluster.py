@@ -32,7 +32,11 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
 
 
 async def run_master(config_file):
-    cmd = "{} -u master.py --cluster_config={}".format(PYTHON, config_file)
+    # cmd = "{} -u master.py --cluster_config={}".format(PYTHON, config_file)
+    # cmd = "mprof run master.py --cluster_config={}".format(config_file)
+    cmd = "{} -u -m memory_profiler master.py --cluster_config={}".format(
+        PYTHON, config_file
+    )
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )

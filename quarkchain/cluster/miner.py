@@ -18,6 +18,8 @@ from quarkchain.config import ConsensusType
 from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader
 from quarkchain.utils import Logger, sha256, time_ms
 
+from memory_profiler import profile
+
 Block = Union[MinorBlock, RootBlock]
 MAX_NONCE = 2 ** 64 - 1  # 8-byte nonce max
 
@@ -245,6 +247,7 @@ class Miner:
             return None
         return asyncio.ensure_future(mine_new_block())
 
+    @profile
     async def get_work(self, now=None) -> MiningWork:
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
@@ -273,6 +276,7 @@ class Miner:
 
         return MiningWork(header_hash, header.height, header.difficulty)
 
+    @profile
     async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes) -> bool:
         if not self.remote:
             raise ValueError("Should only be used for remote miner")

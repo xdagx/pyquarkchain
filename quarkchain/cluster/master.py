@@ -81,6 +81,8 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 
+from memory_profiler import profile
+
 
 TIMEOUT = 10
 
@@ -279,6 +281,7 @@ class Synchronizer:
         self.queue = deque()
         self.running = False
 
+    @profile
     def add_task(self, header, peer):
         self.queue.append((header, peer))
         Logger.info(
@@ -787,6 +790,7 @@ class MasterServer:
     def get_shutdown_future(self):
         return self.shutdown_future
 
+    @profile
     async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
         """ Try to create a root block to mine or return None if failed proof-of-progress """
         futures = []
@@ -847,6 +851,7 @@ class MasterServer:
 
         return self.root_state.create_block_to_mine(header_list, address)
 
+    @profile
     async def __create_root_block_to_mine_or_fallback_to_minor_block(self, address):
         """ Try to create a root block to mine or fallback to create minor block if failed proof-of-progress
         TODO: reuse code in __create_root_block_to_mine
@@ -920,6 +925,7 @@ class MasterServer:
         )
         return response.block if response.error_code == 0 else None
 
+    @profile
     async def get_next_block_to_mine(
         self, address, shard_mask_value=0, prefer_root=False, randomize_output=True
     ):
@@ -1105,6 +1111,7 @@ class MasterServer:
     def handle_new_root_block_header(self, header, peer):
         self.synchronizer.add_task(header, peer)
 
+    @profile
     async def add_root_block(self, r_block):
         """ Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
