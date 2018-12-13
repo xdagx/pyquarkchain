@@ -44,6 +44,13 @@ class RootDb:
         self.m_hash_set = set()
         self.r_header_pool = dict()
         self.tip_header = None
+        # OOM bomb
+        self.graph = (
+            dict()
+        )  # shard_id -> {height -> (timestamp, difficulty, miner_recipient)}
+
+        self.miners = dict()  # recipient -> id
+        self.current_miner_id = 0
 
         self.__recover_from_db()
 
@@ -66,10 +73,31 @@ class RootDb:
         r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
         self.tip_header = r_block.header  # type: RootBlockHeader
 
-        while len(self.r_header_pool) < self.max_num_blocks_to_recover:
-            self.r_header_pool[r_hash] = r_block.header
-            for m_header in r_block.minor_block_header_list:
-                self.m_hash_set.add(m_header.get_hash())
+        while True:
+            # build graph
+            for header in r_block.minor_block_header_list:
+                shard_id = header.branch.get_shard_id()
+                height = header.height
+                timestamp = header.create_time
+                difficulty = header.difficulty
+                recipient = header.coinbase_address.recipient.hex()
+                if recipient in self.miners:
+                    miner_id = self.miners[recipient]
+                else:
+                    miner_id = self.current_miner_id
+                    self.miners[recipient] = miner_id
+                    self.current_miner_id += 1
+                self.graph.setdefault(shard_id, dict())[height] = [
+                    timestamp,
+                    difficulty,
+                    miner_id,
+                ]
+            print("Recovered graph for root block {}".format(r_block.header.height))
+
+            if len(self.r_header_pool) < self.max_num_blocks_to_recover:
+                self.r_header_pool[r_hash] = r_block.header
+                for m_header in r_block.minor_block_header_list:
+                    self.m_hash_set.add(m_header.get_hash())
 
             if r_block.header.height <= 0:
                 break
@@ -122,8 +150,37 @@ class RootDb:
     def contain_root_block_by_hash(self, h):
         return h in self.r_header_pool
 
+    def get_graph(self):
+        graph = dict()  # timestamp -> {shard_id -> [height, difficulty]}
+        for shard_id, heights in self.graph.items():
+            for height, item in heights.items():
+                if height == 0:
+                    continue
+                rounded = item[0] // 3600
+                graph.setdefault(rounded * 3600, dict())[shard_id] = [height, item[1]]
+        return {"graph": graph, "miners": self.miners}
+
     def put_root_block_index(self, block):
         self.db.put(b"ri_%d" % block.header.height, block.header.get_hash())
+
+        # update graph
+        for header in block.minor_block_header_list:
+            shard_id = header.branch.get_shard_id()
+            height = header.height
+            timestamp = header.create_time
+            difficulty = header.difficulty
+            recipient = header.coinbase_address.recipient.hex()
+            if recipient in self.miners:
+                miner_id = self.miners[recipient]
+            else:
+                miner_id = self.current_miner_id
+                self.miners[recipient] = miner_id
+                self.current_miner_id += 1
+            self.graph.setdefault(shard_id, dict())[height] = [
+                timestamp,
+                difficulty,
+                miner_id,
+            ]
 
         if not self.count_minor_blocks:
             return

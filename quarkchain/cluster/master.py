@@ -1287,6 +1287,9 @@ class MasterServer:
         )
         return {"rootHeight": header.height, "shardRC": shard_r_c}
 
+    def get_graph(self):
+        return self.root_state.db.get_graph()
+
     async def get_stats(self):
         shards = [dict() for i in range(self.__get_shard_size())]
         for shard_stats in self.branch_to_shard_stats.values():
